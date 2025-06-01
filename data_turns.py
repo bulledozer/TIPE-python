@@ -13,26 +13,36 @@ START = pl.pi/4
 END = pl.pi-0.1
 
 theta = pl.linspace(START, END, N)
-phi = pl.linspace(-END/2, END/2, N)
+phi = pl.linspace(0, END/2-0.1, N)
 
 T,P = pl.meshgrid(theta,phi)
 
 R = [[] for i in range(N)]
-V = [[] for i in range(N)]
+Vs = [[] for i in range(N)]
 for i in range(N):
     for j in range(N):
-        if theta[i]/2 - phi[j] <= 0:
+        if T[i][j]/2 - P[i][j] <= pl.pi/6:
             R[i].append(0)
-            V[i].append(0)
+            Vs[i].append(0)
             continue
-        r = R1 + (R2-R1)/(1-pl.cos(theta[i]/2 - phi[j]))
-        re = R1 + (R2-R1)/(1-pl.sin(theta[i]/2 - phi[j]))
+        
+        phip = T[i][j]/2 - P[i][j]
+
+        r = R1 + (R2-R1)/(1-pl.cos(phip))
+        re = R1 + (R2-R1)/(1-pl.sin(phip))
         R[i].append(r)
-        V[i].append(min(pl.sqrt(r*mu*g), pl.sqrt(2*accel*r*phi[j])))
+
+        if P[i][j] >= 0:
+            Vs[i].append(min(pl.sqrt(r*mu*g), pl.sqrt(2*accel*r*(phip) + re*mu*g)))
+        else:
+            Vs[i].append(pl.sqrt(re*mu*g))
 
 ax = pl.figure().add_subplot(projection='3d')
-ax.plot_surface(T,P,pl.array(V),edgecolor='royalblue', lw=0.5, rstride=8, cstride=8,alpha=0.3)
+ax.plot_surface(T,P,pl.array(Vs),edgecolor='royalblue', lw=0.5, rstride=8, cstride=8,alpha=0.3)
 
-ax.set(zlim=(-100,100),xlabel='theta', ylabel='phi', zlabel='R')
+ax.contour(T, P, pl.array(Vs), zdir='x', offset = END, cmap='coolwarm')
+ax.contour(T, P, pl.array(Vs), zdir='y', offset = END/2, cmap='coolwarm')
+
+ax.set(xlim=(START, END), ylim=(0, END/2),zlim=(0,50),xlabel='theta', ylabel='phi', zlabel='R')
 
 pl.show()

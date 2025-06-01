@@ -41,10 +41,16 @@ class Spline:
 
         return ((dP[0]**2+dP[1]**2)**(1.5))/abs(dP[0]*d2P[1]-d2P[0]*dP[1])
     
-    def compute_time(self, R):
+    def compute_time(self, R, vmax):
         t = 0
         for i in range(R):
-            t += sqrt(self.compute_curvature(i/R))
+            p0 = self.compute_point(i/R)
+            p1 = self.compute_point((i+1)/R)
+
+            dst = pl.sqrt((p0[0]-p1[0])**2 + (p0[1]-p1[1])**2)
+
+            t += dst/pl.sqrt(min(self.compute_curvature(i/R), vmax))
+        return t
 
 class Road(Spline):
     def __init__(self,N, M, W):
@@ -67,5 +73,5 @@ class Road(Spline):
     def compute_points(self, n,m):
         P = []
         for i in range(n):
-            P.append(self.compute_width(i/n, m))
+            P.append(self.compute_width(i/(n-1), m))
         return np.array(P)

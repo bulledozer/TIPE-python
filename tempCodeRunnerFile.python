@@ -1,0 +1,29 @@
+import matplotlib.pyplot as plt
+import numpy as np
+
+from matplotlib import cm
+
+plt.style.use('_mpl-gallery')
+
+# Make data
+X = np.linspace(-5, 5, 500)
+Y = np.linspace(-5, 5, 500)
+X, Y = np.meshgrid(X, Y)
+R = np.sqrt(X**2 + 2*Y**2)
+Z = np.sin(R)
+
+"""Z = [[] for i in range(500)]
+for i in range(500):
+       for j in range(500):
+              Z[i].append(np.sin(np.sqrt(X[i][j]**2+2*Y[i][j]**2)))
+Z = np.array(Z)"""
+
+# Plot the surface
+fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
+ax.plot_surface(X, Y, Z, vmin=Z.min() * 2, cmap=cm.Blues)
+
+ax.set(xticklabels=[],
+       yticklabels=[],
+       zticklabels=[])
+
+plt.show()
