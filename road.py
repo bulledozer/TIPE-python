@@ -1,13 +1,14 @@
-from casadi import *
 import pylab as pl
 import numpy as np
 from scipy.interpolate import *
+from utils import *
 
 class Spline:
     def __init__(self,N, M = []):
         self.N = N
         #self.points = SX.sym("P",N,2) if M == SX(0) else M
         self.points = np.array(M) if M != [] else np.zeros((N,2))
+        self.lengths = [0]*(N-3)
 
     def change_point(self, i, p):
         self.points[i,0] = p[0]
@@ -40,7 +41,7 @@ class Spline:
         d2P = 0.5*np.matmul(np.matmul(np.array([0,0,2,6*nt]),np.array([[0,2,0,0],[-1,0,1,0],[2,-5,4,-1],[-1,3,-3,1]])),np.array([A,B,C,D]))
 
         return ((dP[0]**2+dP[1]**2)**(1.5))/abs(dP[0]*d2P[1]-d2P[0]*dP[1])
-    
+
     def compute_time(self, R, vmax):
         t = 0
         for i in range(R):
@@ -51,6 +52,30 @@ class Spline:
 
             t += dst/pl.sqrt(min(self.compute_curvature(i/R), vmax))
         return t
+    
+    def compute_lengthst(self, R):
+        self.lengths = [0]*(self.N-3)
+        for i in range(self.N-3):
+            for j in range(R):
+                p0 = self.compute_point(i/(self.N-3) + j/(R*(self.N-3)))
+                p1 = self.compute_point(i/(self.N-3) + (j+1)/(R*(self.N-3)))
+
+                dst = pl.sqrt((p0[0]-p1[0])**2 + (p0[1]-p1[1])**2)
+                self.lengths[i] += dst
+
+    def compute_point_eq(self, t):
+        i = 0
+        totlength = sum(self.lengths)
+        partialsum = 0
+        while i < self.N - 3:
+            if t > (partialsum + self.lengths[i])/totlength:
+                break
+            partialsum += self.lengths[i]
+            i += 1
+        
+        return self.compute_point(pl.interp(inv_lerp(partialsum/totlength, (partialsum + self.lengths[i])/totlength, t)))
+
+
 
 class Road(Spline):
     def __init__(self,N, M, W):
