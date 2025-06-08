@@ -1,1 +1,1 @@
-points[i][1],points[i+1][1]
+spl.compute_point_seg(np.linspace(times[i+1], times[i+2], 100), times[i:i+4], *point_pack[i:i+4]) for i in range(N-3)

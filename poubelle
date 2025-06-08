@@ -189,3 +189,50 @@ for i in range(len(splines)):
     times.append((s.compute_time(RES), i))
 
 times.sort()
+
+times = spl.compute_times(1, track_points)
+point_pack = [[track_points[idx+i] for i in range(4)] for idx in range(N-3)]
+
+spline = [spl.compute_point_seg(np.arange(times[i+1], times[i+2], 10).reshape(len(np.arange(times[i+1], times[i+2], 10)),1), 
+                                times[i:i+4], point_pack[i]) for i in range(N-3)]
+spline = np.concatenate(spline)
+
+print(spline)
+
+for i in range(len(spline)-1):
+    #pl.plot((spline[i][0],spline[i+1][0]), (spline[i][1],spline[i+1][1]), c='r', linewidth=3)
+    pl.plot(spline[i][0], spline[i][1], 'ro')
+def compute_times(self, alpha, points):
+        times = [0]
+        for i in range(len(points)-1):
+            dst = pl.sqrt((points[i][0]-points[i+1][0])**2 + (points[i][1]-points[i+1][1])**2)+0.01
+            times.append(times[-1] + dst**alpha)
+
+        return times
+
+    def compute_point_seg(self, t, times, points):
+        #print(times)
+
+        A1 = (times[1]-t)/(times[1]-times[0])*points[0] + (t-times[0])/(times[1]-times[0])*points[1]
+        A2 = (times[2]-t)/(times[2]-times[1])*points[1] + (t-times[1])/(times[2]-times[1])*points[2]
+        A3 = (times[3]-t)/(times[3]-times[2])*points[2] + (t-times[2])/(times[3]-times[2])*points[3]
+
+        B1 = (times[2]-t)/(times[2]-times[0])*A1 + (t-times[0])/(times[2]-times[0])*A2
+        B2 = (times[3]-t)/(times[3]-times[1])*A2 + (t-times[1])/(times[3]-times[1])*A3
+        
+        C = (times[2]-t)/(times[2]-times[1])*B1 + (t-times[1])/(times[2]-times[1])*B2
+        
+        return C
+
+    def compute_point_2(self, t, times):
+        seg = int(t*(self.N-3))
+
+        A = self.points[seg%self.N]  
+        B = self.points[(seg+1)%self.N]
+        C = self.points[(seg+2)%self.N]
+        D = self.points[(seg+3)%self.N]
+
+        nt = (t%(1/(self.N-3)))*(self.N-3)
+        ntimes = times[seg:seg+4]
+
+        return self.compute_point_seg(lerp(ntimes[1], ntimes[2], nt), ntimes, [A,B,C,D])

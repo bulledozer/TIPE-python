@@ -1,14 +1,16 @@
-import pylab as pl
 import numpy as np
 from scipy.interpolate import *
 from utils import *
+from bisect import bisect_right
+
 
 class Spline:
     def __init__(self,N, M = []):
         self.N = N
+        self.lengths = []
         #self.points = SX.sym("P",N,2) if M == SX(0) else M
         self.points = np.array(M) if M != [] else np.zeros((N,2))
-        self.lengths = [0]*(N-3)
+        
 
     def change_point(self, i, p):
         self.points[i,0] = p[0]
@@ -26,6 +28,13 @@ class Spline:
         
         return 0.5*np.matmul(np.matmul(np.array([1,nt,nt**2,nt**3]),np.array([[0,2,0,0],[-1,0,1,0],[2,-5,4,-1],[-1,3,-3,1]])),np.array([A,B,C,D]))
 
+    def compute_point_seg(self, t, seg):
+        A = self.points[seg%self.N]  
+        B = self.points[(seg+1)%self.N]
+        C = self.points[(seg+2)%self.N]
+        D = self.points[(seg+3)%self.N]
+
+        return 0.5*np.matmul(np.matmul(np.array([1,t,t**2,t**3]),np.array([[0,2,0,0],[-1,0,1,0],[2,-5,4,-1],[-1,3,-3,1]])),np.array([A,B,C,D]))
 
     def compute_curvature(self, t):
         seg = int(t*(self.N-3))
@@ -48,33 +57,25 @@ class Spline:
             p0 = self.compute_point(i/R)
             p1 = self.compute_point((i+1)/R)
 
-            dst = pl.sqrt((p0[0]-p1[0])**2 + (p0[1]-p1[1])**2)
+            dst = np.sqrt((p0[0]-p1[0])**2 + (p0[1]-p1[1])**2)
 
-            t += dst/pl.sqrt(min(self.compute_curvature(i/R), vmax))
+            t += dst/np.sqrt(min(self.compute_curvature(i/R), vmax))
         return t
     
-    def compute_lengthst(self, R):
-        self.lengths = [0]*(self.N-3)
+    def compute_time_fast(self, R, vmax):
+        times = np.linspace(.0,1.,R)
+        curvature = np.maximum(np.array([self.compute_curvature(t) for t in times]), [vmax]*R)
+        return sum(1/curvature)
+    
+    def compute_lengths(self, R):
+        self.lengths = []
         for i in range(self.N-3):
-            for j in range(R):
-                p0 = self.compute_point(i/(self.N-3) + j/(R*(self.N-3)))
-                p1 = self.compute_point(i/(self.N-3) + (j+1)/(R*(self.N-3)))
+            times = np.linspace(0.0,1.0,R)
+            pos = np.array([self.compute_point_seg(t,i) for t in times])
+            pos = np.linalg.norm(np.diff(pos, axis=0), axis=1)
+            self.lengths.append(np.sum(pos))
 
-                dst = pl.sqrt((p0[0]-p1[0])**2 + (p0[1]-p1[1])**2)
-                self.lengths[i] += dst
-
-    def compute_point_eq(self, t):
-        i = 0
-        totlength = sum(self.lengths)
-        partialsum = 0
-        while i < self.N - 3:
-            if t > (partialsum + self.lengths[i])/totlength:
-                break
-            partialsum += self.lengths[i]
-            i += 1
-        
-        return self.compute_point(pl.interp(inv_lerp(partialsum/totlength, (partialsum + self.lengths[i])/totlength, t)))
-
+        return self.lengths
 
 
 class Road(Spline):
@@ -82,10 +83,16 @@ class Road(Spline):
         super().__init__(N,M)
         self.W = W
 
-    def compute_width(self, t, R):
+    def compute_width(self, t, R, seg = -1):
         P = []
-        M = self.compute_point(t)
-        M2 = self.compute_point(t+0.001)
+        M,M2 = None,None
+        if seg == -1:
+            M = self.compute_point(t)
+            M2 = self.compute_point(t+0.001)
+        else:
+            M = self.compute_point_seg(t, seg)
+            M2 = self.compute_point_seg(t+0.001, seg)
+        
         for i in range(R):
             dir = (np.cross((M2-M)+[0], [0,0,1]))
             P.append(M+(dir/np.linalg.norm(dir))[:2]*self.W*((i/R)*2-1))
@@ -96,7 +103,18 @@ class Road(Spline):
         return (1-s)*l1+s*l2
     
     def compute_points(self, n,m):
+        if self.lengths == []:
+            raise ValueError("self.lengths est vide")
+
         P = []
-        for i in range(n):
-            P.append(self.compute_width(i/(n-1), m))
+        #for i in range(n):
+        #    P.append(self.compute_width(i/(n-1), m))
+
+        for i in range(self.N-3):
+            #dst = np.sqrt((self.points[i+1][0]-self.points[i+2][0])**2+(self.points[i+1][1]-self.points[i+2][1])**2)
+            #times = np.linspace(i/(self.N-3), (i+1)/(self.N-3), int(dst*n), endpoint=False)
+            times = np.linspace(0.0,1.0,int(self.lengths[i]*n), endpoint=False)
+            for t in times:
+                P.append(self.compute_width(t,m,i))
+
         return np.array(P)
