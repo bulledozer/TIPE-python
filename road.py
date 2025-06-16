@@ -2,6 +2,7 @@ import numpy as np
 from scipy.interpolate import *
 from utils import *
 from bisect import bisect_right
+import splines
 
 
 class Spline:
@@ -59,7 +60,7 @@ class Spline:
 
             dst = np.sqrt((p0[0]-p1[0])**2 + (p0[1]-p1[1])**2)
 
-            t += dst/np.sqrt(min(self.compute_curvature(i/R), vmax))
+            t += dst
         return t
     
     def compute_time_fast(self, R, vmax):
@@ -118,3 +119,20 @@ class Road(Spline):
                 P.append(self.compute_width(t,m,i))
 
         return np.array(P)
+    
+    def compute_points2(self,n,m):
+        spl = splines.CatmullRom(self.points, alpha=1)
+        times = np.linspace(spl.grid[0], spl.grid[-1],n+1)
+        points = spl.evaluate(times)
+
+        P = []
+        for i in range(n):
+            M = points[i]
+            M2 = points[i+1]
+            R = []
+            for i in range(m):
+                dir = (np.cross((M2-M)+[0], [0,0,1]))
+                R.append(M+(dir/np.linalg.norm(dir))[:2]*self.W*((i/m)*2-1))
+            P.append(R)
+        return np.array(P)
+
