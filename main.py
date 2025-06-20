@@ -13,7 +13,7 @@ from utils import *
 #---------PARAMETRES------------------
 
 # ROUTE
-#PIPI
+
 WIDTH = 15 # largeur de la route
 N_POINTS = 200 # nombre de points
 
