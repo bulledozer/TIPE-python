@@ -19,13 +19,13 @@ N_POINTS = 200 # nombre de points
 
 # MODELISATION
 
-N_SECTORS = 50 # nombre de points de contrôle sur la courbe solution
+N_SECTORS = 200 # nombre de points de contrôle sur la courbe solution
 VMAX = 2500 # vitesse maximum
 
 # DESCENTE DE GRADIENT
 
 SCALE = 100 # coefficient du gradient
-N_ITER = 1000 # nombre d'itérations
+N_ITER = 300 # nombre d'itérations
 
 # COSMETIQUE
 
@@ -86,8 +86,17 @@ def time_from_state2(state):
         t += 2*(np.sqrt(phi)-np.sqrt(theta))/alpha
     return t
 
-def gradient_descent(state,scale,times):
-    base_time = time_from_state2(state)
+def time_from_state3(state):
+    controls = np.array(points_from_state(state))
+    t = 0
+    
+    for i in range(len(state)-1):
+        t+= np.linalg.norm(controls[i]-controls[i+1])
+
+    return t
+
+def gradient_descent(state,scale,times,timef):
+    base_time = timef(state)
 
     times.append(base_time)
 
@@ -98,7 +107,7 @@ def gradient_descent(state,scale,times):
         state2 = copy.deepcopy(state)
         state2[i] = np.clip(state2[i]+dx, 0,1)
 
-        new_time = time_from_state2(state2)
+        new_time = timef(state2)
 
         gradient[i] = new_time-base_time
     
@@ -109,7 +118,7 @@ def gradient_descent(state,scale,times):
 
  
 for i in range(N_ITER):
-    gradient_descent(curve_state, SCALE, TIMES)
+    gradient_descent(curve_state, SCALE, TIMES, time_from_state3)
     if VERBOSE:
         print("Iter : ", i, " | Temps : ", TIMES[-1])
 
