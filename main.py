@@ -25,13 +25,13 @@ N_POINTS = 200 # nombre de points
 
 # MODELISATION
 
-N_SECTORS = 50 # nombre de points de contrôle sur la courbe solution
+N_SECTORS = 100 # nombre de points de contrôle sur la courbe solution
 VMAX = 2500 # vitesse maximum
 
 # DESCENTE DE GRADIENT
 
 SCALE = 100 # coefficient du gradient
-N_ITER = 50 # nombre d'itérations
+N_ITER = 1000 # nombre d'itérations
 
 # COSMETIQUE
 
@@ -120,7 +120,7 @@ sol_points = np.array(points_from_state(min_state))
 
 #------------VOITURE---------------
 
-car = Car(3,1,1500)
+car = Car(1,0.5,1500,g)
 
 dt = 0.01
 
@@ -154,12 +154,14 @@ plot_points(p2, ax0)
 ax0.plot(sol_points[:,0],sol_points[:,1], c='orange', linewidth=3)
 ax0.scatter(*sol_points.T, c='r', marker='*', s=60, zorder=2)
 
-artists = []
-for p in positions:
-    car = ax0.plot(p, c='b', markersize=20, zorder=3)
-    artists.append(car)
+car = ax0.scatter(*positions[0],c='b', s=50, zorder=3)
 
-ani = anim.ArtistAnimation(fig=f0, artists=artists, interval=dt*1000)
+def update(i):
+    car.set_offsets(positions[i])
+    return car,
+
+ani = anim.FuncAnimation(fig=f0, func=update, frames=len(positions)-1, interval=dt*1000)
+#ani.save('results/anim.mp4')
 
 ax1,ax2 = f1.subplots(1,2)
 

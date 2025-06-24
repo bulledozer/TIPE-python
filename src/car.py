@@ -3,20 +3,19 @@ from src.road import Spline
 
 import matplotlib.pyplot as plt
 
-g = 9.81
-
 class Car:
-    def __init__(self, accel, brake, m):
+    def __init__(self, accel, brake, m, g):
         self.accel = accel
         self.brake = brake
         self.m = m
+        self.g = g
 
     def speed_from_curve(self, points, R, mu, dt):
         spl = Spline(len(points)+2, np.concatenate([[points[0]],points,[points[-1]]], axis=0))
 
         curvatures = np.array([spl.compute_curvature(i/R) for i in range(R)])
         
-        speeds = np.sqrt(curvatures*mu*g) # type: ignore
+        speeds = np.sqrt(curvatures*mu*self.g) # type: ignore
         ds = np.gradient(speeds)
         d2s = np.gradient(ds)
         critics = np.concatenate(np.where(np.abs(ds) < 1e-3))

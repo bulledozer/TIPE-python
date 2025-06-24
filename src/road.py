@@ -1,5 +1,4 @@
 import numpy as np
-from scipy.interpolate import *
 from src.utils import *
 from bisect import bisect_right
 import splines
