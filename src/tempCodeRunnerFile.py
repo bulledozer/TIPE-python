@@ -1,0 +1,1 @@
+[0],np.cumsum(np.linspace(0,tmax,len(speeds)))

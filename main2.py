@@ -8,8 +8,8 @@ import copy
 
 from random import randint, random
 
-from road import *
-from utils import *
+from src.road import *
+from src.utils import *
 
 
 #---------COSMETIQUE (afficher la route) -----------
