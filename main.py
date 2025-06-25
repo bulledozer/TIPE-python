@@ -20,13 +20,13 @@ g = 9.81
 
 # ROUTE
 
-WIDTH = 15 # largeur de la route
-N_POINTS = 200 # nombre de points
+WIDTH = 3 # largeur de la route
+N_POINTS = 400 # nombre de points
 
 # MODELISATION
 
 N_SECTORS = 100 # nombre de points de contrôle sur la courbe solution
-VMAX = 2500 # vitesse maximum
+VMAX = 50 # vitesse maximum
 
 # DESCENTE DE GRADIENT
 
@@ -44,7 +44,7 @@ VERBOSE = True # affiche les infos dans la console
 track_points = []
 N = 0
 
-with open("road.txt", 'r') as f:
+with open("roads/Monza_centerline.csv", 'r') as f:
     L = f.readlines()
     N = len(L)
     for l in L:
@@ -52,7 +52,7 @@ with open("road.txt", 'r') as f:
         track_points.append((float(l1[0]), float(l1[1])))
 
 
-spl = Road(N, track_points, WIDTH)
+spl = Road(N, track_points, WIDTH, True)
 
 p2 = spl.compute_points2(N_POINTS,2)
 
@@ -81,7 +81,7 @@ def time_from_state(state):
         
         theta = np.arccos(np.dot(controls[i,:]-controls[i+1,:], controls[i+2,:]-controls[i+1,:])/(L1*L2)) 
 
-        t += 1/np.abs(np.tan(theta/2))
+        t += 1/min(np.abs(np.tan(theta/2)), VMAX)
     return t
 
 def gradient_descent(state,scale,times,timef):
@@ -118,50 +118,17 @@ for i in range(N_ITER):
 
 sol_points = np.array(points_from_state(min_state))
 
-#------------VOITURE---------------
-
-car = Car(1,0.5,1500,g)
-
-dt = 0.01
-
-speeds,dist = car.speed_from_curve(sol_points, 1000, 1, dt)
-tmax = dt*len(speeds)
-
-sol_spl = Spline(len(sol_points)+2, np.concatenate([[sol_points[0]],sol_points,[sol_points[-1]]], axis=0))
-
-x,s = 0,0
-i = 0
-positions = [sol_points[0]]
-while s < 1:
-    new_s = s + 0.01
-    new_x = x + np.linalg.norm(sol_spl.compute_point(new_s) - sol_spl.compute_point(s))
-
-    if new_x >= dist[i]:
-        positions.append(sol_spl.compute_point(new_s))
-        i += 1
-
-    x,s = new_x, new_s
-
-
 #-------------AFFICHAGE----------------
 
 f0 = plt.figure()
 f1 = plt.figure()
 
 ax0 = f0.add_subplot()
+ax0.set_aspect('equal', 'datalim')
 
-plot_points(p2, ax0)
+plot_points(p2, ax0, False, 'black')
 ax0.plot(sol_points[:,0],sol_points[:,1], c='orange', linewidth=3)
 ax0.scatter(*sol_points.T, c='r', marker='*', s=60, zorder=2)
-
-car = ax0.scatter(*positions[0],c='b', s=50, zorder=3)
-
-def update(i):
-    car.set_offsets(positions[i])
-    return car,
-
-ani = anim.FuncAnimation(fig=f0, func=update, frames=len(positions)-1, interval=dt*1000)
-#ani.save('results/anim.mp4')
 
 ax1,ax2 = f1.subplots(1,2)
 
@@ -169,7 +136,18 @@ ax1,ax2 = f1.subplots(1,2)
 ax1.set(xlabel='Itérations', ylabel='Temps')
 ax1.plot([i for i in range(N_ITER)], TIMES)
 
-ax2.plot(np.concatenate([[0],np.cumsum(np.linspace(0,tmax,len(speeds)-1))]), speeds)
+curvatures = []
+controls = sol_points
+
+
+for i in range(len(sol_points)-2):
+    L1 = np.sqrt((controls[i+1,0]-controls[i+2,0])**2 + (controls[i+1,1]-controls[i+2,1])**2)
+    L2 = np.sqrt((controls[i+1,0]-controls[i,0])**2 + (controls[i+1,1]-controls[i,1])**2)
+    
+    theta = np.arccos(np.dot(controls[i,:]-controls[i+1,:], controls[i+2,:]-controls[i+1,:])/(L1*L2))
+    curvatures.append(np.tan(theta/2))
+
+ax2.plot(np.linspace(0,1,len(curvatures)), curvatures)
 
 
 plt.show()

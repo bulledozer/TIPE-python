@@ -24,7 +24,7 @@ class Car:
         lengths = np.concatenate([[0], np.cumsum(np.linalg.norm(np.diff(np.array([spl.compute_point(i/R) for i in range(R)]), axis=0), axis=1))])
 
         t = 0
-        x = 0
+        x = 0  
 
         curr_idx = 0
 
