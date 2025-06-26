@@ -6,6 +6,6 @@ TIPE réalisé en python. L'objet est de déterminer un chemin de temps minimal 
 
 ## Résultats
 
-![Circuit de Monza](https://imgur.com/a/924PGTV)
+![Circuit de Monza](https://github.com/bulledozer/TIPE-python/blob/b1258a7b6b63fe614fd15911f19c5a7d5470960c/results/Monza.png)
 
-![Aperçu de près](https://imgur.com/jr69mzL)
+![Aperçu de près](https://github.com/bulledozer/TIPE-python/blob/b1258a7b6b63fe614fd15911f19c5a7d5470960c/results/Monza2.png)
