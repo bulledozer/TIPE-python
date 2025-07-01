@@ -11,6 +11,7 @@ from random import randint, random
 from src.road import *
 from src.utils import *
 from src.car import *
+from src.solver import *
 
 
 #---------PARAMETRES------------------
@@ -30,7 +31,7 @@ VMAX = 50 # vitesse maximum
 
 # DESCENTE DE GRADIENT
 
-SCALE = 100 # coefficient du gradient
+SCALE = 150 # coefficient du gradient
 N_ITER = 1000 # nombre d'itérations
 
 # COSMETIQUE
@@ -61,62 +62,12 @@ POINTS = spl.compute_points2(N_SECTORS, 2)
 
 #-----------RESOLUTION------------
 
-curve_state = [0.5]*(N_SECTORS)
-dx = 0.0001
 
 TIMES = []
 
+sol = Solver(POINTS, SCALE, N_SECTORS, VMAX, 0.0001)
+sol_points = sol.solve(N_ITER, TIMES)
 
-def points_from_state(state):
-    return np.array([POINTS[i][0]*(1-state[i])+POINTS[i][1]*state[i] for i in range(len(state))])
-
-def time_from_state(state):
-    controls = np.array(points_from_state(state))
-
-    t = 0
-
-    for i in range(len(state)-2):
-        L1 = np.sqrt((controls[i+1,0]-controls[i+2,0])**2 + (controls[i+1,1]-controls[i+2,1])**2)
-        L2 = np.sqrt((controls[i+1,0]-controls[i,0])**2 + (controls[i+1,1]-controls[i,1])**2)
-        
-        theta = np.arccos(np.dot(controls[i,:]-controls[i+1,:], controls[i+2,:]-controls[i+1,:])/(L1*L2)) 
-
-        t += 1/min(np.abs(np.tan(theta/2)), VMAX)
-    return t
-
-def gradient_descent(state,scale,times,timef):
-    base_time = timef(state)
-
-    times.append(base_time)
-
-    gradient = [0]*N_SECTORS
-
-
-    for i in range(N_SECTORS):
-        state2 = copy.deepcopy(state)
-        state2[i] = np.clip(state2[i]+dx, 0,1)
-
-        new_time = timef(state2)
-
-        gradient[i] = new_time-base_time
-    
-    for i in range(N_SECTORS):
-        state[i] -= gradient[i]*scale
-        state[i] = np.clip(state[i],0,1)
-
-
-min_state = curve_state
-min_time = float('inf')
-
-for i in range(N_ITER):
-    gradient_descent(curve_state, SCALE, TIMES, time_from_state)
-    if TIMES[-1] < min_time:
-        min_state = curve_state
-
-    if VERBOSE and not i%50:
-        print("Iter : ", i, " | Temps : ", TIMES[-1])
-
-sol_points = np.array(points_from_state(min_state))
 
 #-------------AFFICHAGE----------------
 

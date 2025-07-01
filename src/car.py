@@ -1,4 +1,6 @@
 import numpy as np
+from scipy.signal import find_peaks
+
 from src.road import Spline
 
 import matplotlib.pyplot as plt
@@ -10,50 +12,28 @@ class Car:
         self.m = m
         self.g = g
 
-    def speed_from_curve(self, points, R, mu, dt):
+    def profile_prom_point(self, s, p, v, a_max, a_min):
+        speeds = np.zeros(len(s))
+        speeds[p] = v
+        for i in range(p):
+            speeds[p-1-i] = np.sqrt(speeds[p-i]**2-2*s[p-i-1]*a_min)
+        for i in range(len(s)-p-1):
+            speeds[p+i+1] = np.sqrt(speeds[p+i]**2+2*s[p+i]*a_max)
+
+        return speeds
+
+    def compute_velocity_profile(self, points, mu, R):
         spl = Spline(len(points)+2, np.concatenate([[points[0]],points,[points[-1]]], axis=0))
 
         curvatures = np.array([spl.compute_curvature(i/R) for i in range(R)])
-        
-        speeds = np.sqrt(curvatures*mu*self.g) # type: ignore
-        ds = np.gradient(speeds)
-        d2s = np.gradient(ds)
-        critics = np.concatenate(np.where(np.abs(ds) < 1e-3))
-        minima = [i for i in critics if d2s[i] > 0]
+        v_max_theo = np.sqrt(curvatures*mu*self.g)
+        s = np.concatenate([[0], np.cumsum(np.linalg.norm(np.diff(np.array([spl.compute_point(i/R) for i in range(R)]), axis=0), axis=1))])
 
-        lengths = np.concatenate([[0], np.cumsum(np.linalg.norm(np.diff(np.array([spl.compute_point(i/R) for i in range(R)]), axis=0), axis=1))])
+        minima, prop = find_peaks(-v_max_theo, plateau_size=1)
+        profiles = [self.profile_prom_point(s, i, v_max_theo[i], self.accel, self.brake) for i in np.concatenate([minima, prop['left_edges'], prop['right_edges']])]
 
-        t = 0
-        x = 0  
+        speeds = np.copy(v_max_theo)
+        for p in profiles:
+            speeds = np.minimum(speeds, p)
 
-        curr_idx = 0
-
-        new_speeds = [0]
-        dist = [0]
-
-        while x < lengths[-1]:
-            t += dt
-            dst = 0
-            v = new_speeds[-1]
-
-            while len(minima) > 0 and minima[0] < curr_idx:
-                minima.pop(0)
-
-            if len(minima) > 0:
-                dst = (speeds[minima[0]]**2-v**2)/(2*(-self.brake))
-
-            if len(minima) == 0 or lengths[minima[0]]-x > dst: #pas encore de freinage
-                v += self.accel*dt
-            else: #freinage
-                v -= self.brake*dt
-            
-            v = min(v, speeds[curr_idx])
-            new_speeds.append(v)
-            dist.append(x)
-
-            x += v*dt
-            while lengths[curr_idx] < x and curr_idx < R-2:
-                curr_idx += 1
-
-        return new_speeds,dist
-    
+        return speeds
