@@ -32,7 +32,7 @@ VMAX = 50 # vitesse maximum
 # DESCENTE DE GRADIENT
 
 SCALE = 150 # coefficient du gradient
-N_ITER = 1000 # nombre d'itérations
+N_ITER = 500 # nombre d'itérations
 
 # COSMETIQUE
 
@@ -68,6 +68,9 @@ TIMES = []
 sol = Solver(POINTS, SCALE, N_SECTORS, VMAX, 0.0001)
 sol_points = sol.solve(N_ITER, TIMES)
 
+car = Car(5,-7, 1500,9.81)
+vel,s = car.compute_velocity_profile(sol_points, 1.3, 1000)
+
 
 #-------------AFFICHAGE----------------
 
@@ -98,7 +101,7 @@ for i in range(len(sol_points)-2):
     theta = np.arccos(np.dot(controls[i,:]-controls[i+1,:], controls[i+2,:]-controls[i+1,:])/(L1*L2))
     curvatures.append(np.tan(theta/2))
 
-ax2.plot(np.linspace(0,1,len(curvatures)), curvatures)
+ax2.plot(s, vel)
 
 
 plt.show()

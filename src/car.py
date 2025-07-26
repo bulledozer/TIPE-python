@@ -3,7 +3,6 @@ from scipy.signal import find_peaks
 
 from src.road import Spline
 
-import matplotlib.pyplot as plt
 
 class Car:
     def __init__(self, accel, brake, m, g):
@@ -30,10 +29,10 @@ class Car:
         s = np.concatenate([[0], np.cumsum(np.linalg.norm(np.diff(np.array([spl.compute_point(i/R) for i in range(R)]), axis=0), axis=1))])
 
         minima, prop = find_peaks(-v_max_theo, plateau_size=1)
-        profiles = [self.profile_prom_point(s, i, v_max_theo[i], self.accel, self.brake) for i in np.concatenate([minima, prop['left_edges'], prop['right_edges']])]
+        profiles = [self.profile_prom_point(np.gradient(s), i, v_max_theo[i] if i > 0 else 0.01, self.accel, self.brake) for i in np.concatenate([[0],minima, prop['left_edges'], prop['right_edges']])]
 
         speeds = np.copy(v_max_theo)
         for p in profiles:
             speeds = np.minimum(speeds, p)
 
-        return speeds
+        return speeds, s

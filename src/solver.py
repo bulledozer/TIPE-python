@@ -1,5 +1,7 @@
 import numpy as np
-import copy
+
+from numba import jit
+from numba.experimental import jitclass
 
 class Solver:
     def __init__(self, points, scale, n_sectors, vmax, dx):
@@ -12,9 +14,9 @@ class Solver:
     def points_from_state(self, state):
         return np.array([self.points[i][0]*(1-state[i])+self.points[i][1]*state[i] for i in range(len(state))])
 
-    def time_from_state(self, state):
+    def time_from_state(self,state):
         controls = self.points_from_state(state)
-
+        print(controls)
         t = 0
 
         for i in range(len(state)-2):
@@ -26,34 +28,58 @@ class Solver:
             t += 1/(min(np.abs(np.tan(theta/2)), self.vmax))
         return t
 
+    def time_from_state2(self, state):
+        controls = self.points_from_state(state)
+
+        A = controls[:-2]   
+        B = controls[1:-1]    
+        C = controls[2:]      
+
+        BA = A - B
+        BC = C - B
+
+        L1 = np.linalg.norm(BC, axis=1)
+        L2 = np.linalg.norm(BA, axis=1)
+        dot_products = np.sum(BA * BC, axis=1)
+
+        cos_theta = dot_products / (L1 * L2)
+        cos_theta = np.clip(cos_theta, -1.0, 1.0)
+        theta = np.arccos(cos_theta)
+
+        return np.sum(1 / np.minimum(np.abs(np.tan(theta / 2)), self.vmax))
+
     def gradient_descent(self, state, scale, times, timef):
         base_time = timef(state)
 
         times.append(base_time)
 
-        gradient = [0]*self.n_sectors
+        gradient = np.zeros(self.n_sectors)
 
 
         for i in range(self.n_sectors):
-            state2 = copy.deepcopy(state)
+            state2 = np.copy(state)
             state2[i] = np.clip(state2[i]+self.dx, 0,1)
 
             new_time = timef(state2)
 
             gradient[i] = new_time-base_time
         
-        for i in range(self.n_sectors):
-            state[i] -= gradient[i]*scale
-            state[i] = np.clip(state[i],0,1)
+        state -= gradient*scale
+        state = np.clip(state,0,1)
+
+        return state
+        #for i in range(self.n_sectors):
+        #    state[i] -= gradient[i]*scale
+        #    state[i] = np.clip(state[i],0,1)
 
     def solve(self, n_iter, times, verbose = True):
-        curve_state = [0.5]*(self.n_sectors)
+        curve_state = np.array([0.5]*(self.n_sectors))
 
         min_state = curve_state
         min_time = float('inf')
 
         for i in range(n_iter):
-            self.gradient_descent(curve_state, self.scale, times, self.time_from_state)
+            curve_state = self.gradient_descent(curve_state, self.scale, times, self.time_from_state2)
             if times[-1] < min_time:
                 min_state = curve_state
 
