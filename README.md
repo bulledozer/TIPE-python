@@ -2,7 +2,7 @@
 
 TIPE réalisé en python. L'objet est de déterminer un chemin de temps minimal au travers d'une route. 
 
-Voir aussi ce [TIPE réalisé en C++](https://github.com/bulledozer/TIPE) plus performant.
+Voir aussi ce même [TIPE réalisé en C++](https://github.com/bulledozer/TIPE) plus performant.
 
 
 ## Résultats
