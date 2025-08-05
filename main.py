@@ -66,6 +66,7 @@ POINTS = spl.compute_points2(N_SECTORS, 2)
 TIMES = []
 
 sol = Solver(POINTS, SCALE, N_SECTORS, VMAX, 0.0001)
+
 sol_points = sol.solve(N_ITER, TIMES)
 
 car = Car(5,-7, 1500,9.81)

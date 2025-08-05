@@ -1,7 +1,6 @@
 import numpy as np
 
-from numba import jit
-from numba.experimental import jitclass
+
 
 class Solver:
     def __init__(self, points, scale, n_sectors, vmax, dx):
