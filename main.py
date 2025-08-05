@@ -12,6 +12,7 @@ from src.road import *
 from src.utils import *
 from src.car import *
 
+from numba import njit
 
 #---------PARAMETRES------------------
 
@@ -64,14 +65,22 @@ POINTS = spl.compute_points2(N_SECTORS, 2)
 curve_state = [0.5]*(N_SECTORS)
 dx = 0.0001
 
-TIMES = []
+TIMES = [0.0]
 
 
+@njit
 def points_from_state(state):
-    return np.array([POINTS[i][0]*(1-state[i])+POINTS[i][1]*state[i] for i in range(len(state))])
+    controls = np.zeros((len(state),2))
 
+    for i in range(len(state)):
+        controls[i] = POINTS[i][0]*(1-state[i])+POINTS[i][1]*state[i]
+
+    return controls
+    #return np.array([POINTS[i][0]*(1-state[i])+POINTS[i][1]*state[i] for i in range(len(state))])
+
+@njit
 def time_from_state(state):
-    controls = np.array(points_from_state(state))
+    controls = points_from_state(state)
 
     t = 0
 
@@ -84,32 +93,40 @@ def time_from_state(state):
         t += 1/min(np.abs(np.tan(theta/2)), VMAX)
     return t
 
+@njit
 def gradient_descent(state,scale,times,timef):
     base_time = timef(state)
 
     times.append(base_time)
 
-    gradient = [0]*N_SECTORS
+    gradient = np.zeros(N_SECTORS)
 
 
     for i in range(N_SECTORS):
-        state2 = copy.deepcopy(state)
-        state2[i] = np.clip(state2[i]+dx, 0,1)
+        state2 = np.zeros(N_SECTORS)
+
+        for i in range(N_SECTORS):
+            state2[i] = state[i]
+
+        state2[i] = state2[i]+dx
 
         new_time = timef(state2)
 
         gradient[i] = new_time-base_time
     
+    new_state = np.zeros(N_SECTORS)
+
     for i in range(N_SECTORS):
-        state[i] -= gradient[i]*scale
-        state[i] = np.clip(state[i],0,1)
+        new_state[i] = state[i]-(gradient[i]*scale)
+        new_state[i] = min(max(new_state[i],0.0),1.0)
+    return new_state
 
 
 min_state = curve_state
 min_time = float('inf')
 
 for i in range(N_ITER):
-    gradient_descent(curve_state, SCALE, TIMES, time_from_state)
+    curve_state = gradient_descent(curve_state, SCALE, TIMES, time_from_state)
     if TIMES[-1] < min_time:
         min_state = curve_state
 
@@ -134,7 +151,7 @@ ax1,ax2 = f1.subplots(1,2)
 
 
 ax1.set(xlabel='Itérations', ylabel='Temps')
-ax1.plot([i for i in range(N_ITER)], TIMES)
+ax1.plot([i for i in range(N_ITER)], TIMES[1:])
 
 curvatures = []
 controls = sol_points
