@@ -4,9 +4,6 @@ import matplotlib.colors as col
 
 import matplotlib.animation as anim
 
-import copy
-
-from random import randint, random
 
 from src.road import *
 from src.utils import *
