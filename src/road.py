@@ -76,7 +76,7 @@ class Road(Spline):
             R = []
             for i in range(m):
                 dir = (np.cross((M2-M)+[0], [0,0,1]))
-                R.append(M+(dir/np.linalg.norm(dir))[:2]*self.W*((i/m)*2-1))
+                R.append(M+(dir/np.linalg.norm(dir))[:2]*self.W*((i/(m-1))*2-1))
             P.append(R)
         if self.closed:
             P[-1] = P[0]

@@ -1,76 +1,31 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.colors as col
 
-import matplotlib.animation as anim
+import pandas as pd
 
+from numba import njit
+
+from alive_progress import alive_bar
 
 from src.road import *
 from src.utils import *
 from src.car import *
 
-from numba import njit
 
-#---------PARAMETRES------------------
-
-global g
-g = 9.81
-
-# ROUTE
-
-WIDTH = 3 # largeur de la route
-N_POINTS = 400 # nombre de points
-
-# MODELISATION
-
-N_SECTORS = 100 # nombre de points de contrôle sur la courbe solution
-VMAX = 50 # vitesse maximum
-
-# DESCENTE DE GRADIENT
-
-SCALE = 100 # coefficient du gradient
-N_ITER = 1000 # nombre d'itérations
-
-# COSMETIQUE
-
-VERBOSE = True # affiche les infos dans la console
-
-
-
-#---------TRAITEMENT ROUTE -----------
-
-track_points = []
-N = 0
-
-with open("roads/Monza_centerline.csv", 'r') as f:
-    L = f.readlines()
-    N = len(L)
-    for l in L:
-        l1 = l.removesuffix('\n').split(',')
-        track_points.append((float(l1[0]), float(l1[1])))
-
-
-spl = Road(N, track_points, WIDTH, True)
-
-p2 = spl.compute_points2(N_POINTS,2)
-
-POINTS = spl.compute_points2(N_SECTORS, 2)
-
-dx = 0.0001
 
 @njit(cache=True)
-def points_from_state(state):
+def points_from_state(state, points):
     controls = np.zeros((len(state),2))
 
     for i in range(len(state)):
-        controls[i] = POINTS[i][0]*(1-state[i])+POINTS[i][1]*state[i]
+        controls[i] = points[i][0]*(1-state[i])+points[i][1]*state[i]
 
     return controls
     #return np.array([POINTS[i][0]*(1-state[i])+POINTS[i][1]*state[i] for i in range(len(state))])
 
 @njit(cache=True)
-def time_from_state(state):
-    controls = points_from_state(state)
+def time_from_state(state, points):
+    controls = points_from_state(state, points)
 
     t = 0
 
@@ -78,41 +33,96 @@ def time_from_state(state):
         L1 = np.sqrt((controls[i+1,0]-controls[i+2,0])**2 + (controls[i+1,1]-controls[i+2,1])**2)
         L2 = np.sqrt((controls[i+1,0]-controls[i,0])**2 + (controls[i+1,1]-controls[i,1])**2)
         
-        theta = np.arccos(np.dot(controls[i,:]-controls[i+1,:], controls[i+2,:]-controls[i+1,:])/(L1*L2)) 
+        theta = np.arccos(np.dot(controls[i]-controls[i+1], controls[i+2]-controls[i+1])/(L1*L2)) 
 
-        t += 1/min(np.abs(np.tan(theta/2)), VMAX)
+        t += 1/np.abs(np.tan(theta/2))
     return t
 
 @njit(cache=True)
-def gradient_descent(state,scale,times,timef):
-    base_time = timef(state)
+def dist_from_state(state, points):
+    controls = points_from_state(state, points)
+
+    d = 0
+
+    for i in range(len(state)-1):
+        d += np.sqrt((controls[i+1,0]-controls[i,0])**2 + (controls[i+1,1]-controls[i,1])**2)
+
+    return d
+
+@njit(cache=True)
+def gradient_descent(state,scale,times,timef,points, dx):
+    base_time = timef(state, points)
 
     times.append(base_time)
 
-    gradient = np.zeros(N_SECTORS)
+    gradient = np.zeros(len(state))
 
 
-    for i in range(N_SECTORS):
-        state2 = np.zeros(N_SECTORS)
+    for i in range(len(state)):
+        state2 = np.zeros(len(state))
 
-        for j in range(N_SECTORS):
+        for j in range(len(state)):
             state2[j] = state[j]
 
         state2[i] = state2[i]+dx
 
-        new_time = timef(state2)
+        new_time = timef(state2, points)
 
         gradient[i] = new_time-base_time
     
-    for i in range(N_SECTORS):
+    for i in range(len(state)):
         state[i] = state[i]-(gradient[i]*scale)
         state[i] = min(max(state[i],0.0),1.0)
 
 
-#-----------RESOLUTION------------
 
 if __name__ == "__main__":
 
+#-----------------------------------------------------------
+#---------PARAMETRES----------------------------------------
+#-----------------------------------------------------------
+
+    g = 9.81
+
+    # ROUTE
+
+    WIDTH = 2.2 # largeur de la route
+    N_POINTS = 800 # nombre de points
+
+    # MODELISATION
+
+    N_SECTORS = 230 # nombre de points de contrôle sur la courbe solution
+
+    # DESCENTE DE GRADIENT
+
+    SCALE = 30 # coefficient du gradient
+    N_ITER = 2000 # nombre d'itérations
+
+    # COSMETIQUE
+
+    VERBOSE = False # affiche les infos dans la console
+    SHOW_LINE = True # attention : Montréal et Shanhai n'ont pas de trajectoire idéale
+    ROAD_NAME = "Nuerburgring"
+
+
+
+#-----------------------------------------------------------
+#---------TRAITEMENT ROUTE ---------------------------------
+#-----------------------------------------------------------
+
+    track_points = pd.read_csv("roads/" + ROAD_NAME + "_centerline.csv").values[:,:2]
+    N = track_points.shape[0]
+
+    spl = Road(N, track_points, WIDTH, True)
+
+    POINTS = spl.compute_points2(N_SECTORS, 2)
+    VIS_POINTS = spl.compute_points2(N_POINTS, 2)
+
+#-----------------------------------------------------------
+#-----------RESOLUTION--------------------------------------
+#-----------------------------------------------------------
+
+    dx = 0.0001
     curve_state = [0.5]*(N_SECTORS)
 
     TIMES = [0.0]
@@ -120,18 +130,23 @@ if __name__ == "__main__":
     min_state = curve_state
     min_time = float('inf')
 
-    for i in range(N_ITER):
-        gradient_descent(curve_state, SCALE, TIMES, time_from_state)
-        
-        if TIMES[-1] < min_time:
-            min_state = curve_state
+    with alive_bar(N_ITER, bar="fish") as bar:
+        for i in range(N_ITER):
+            gradient_descent(curve_state, SCALE, TIMES, time_from_state, POINTS, dx)
+            
+            if TIMES[-1] < min_time:
+                min_state = curve_state
 
-        if VERBOSE and not i%50:
-            print("Iter : ", i, " | Temps : ", TIMES[-1])
+            if VERBOSE and not i%50:
+                print("Iter : ", i, " | Temps : ", TIMES[-1])
 
-    sol_points = np.array(points_from_state(min_state))
+            bar()
 
-    #-------------AFFICHAGE----------------
+    sol_points = points_from_state(min_state, POINTS)
+
+#-----------------------------------------------------------
+#-------------AFFICHAGE-------------------------------------
+#-----------------------------------------------------------
 
     f0 = plt.figure()
     f1 = plt.figure()
@@ -139,9 +154,17 @@ if __name__ == "__main__":
     ax0 = f0.add_subplot()
     ax0.set_aspect('equal', 'datalim')
 
-    plot_points(p2, ax0, False, 'black')
-    ax0.plot(sol_points[:,0],sol_points[:,1], c='orange', linewidth=3)
-    ax0.scatter(*sol_points.T, c='r', marker='*', s=60, zorder=2)
+    plot_points(VIS_POINTS, ax0, False, 'black')
+
+    if SHOW_LINE:
+        line_points = pd.read_csv("lines/"+ROAD_NAME+"_raceline.csv", sep=";").values[:,1:3]
+        ax0.plot(line_points[:,0],line_points[:,1], c='red', linewidth=3, label="trajectoire idéale", linestyle="--")
+
+    ax0.plot(sol_points[:,0],sol_points[:,1], c='orange', linewidth=3, label="notre trajectoire")
+    #ax0.scatter(*sol_points.T, c='r', marker='*', s=60, zorder=2)
+
+
+    ax0.legend()
 
     ax1,ax2 = f1.subplots(1,2)
 
