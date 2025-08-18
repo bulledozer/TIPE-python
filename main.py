@@ -11,6 +11,7 @@ from random import randint, random
 from src.road import *
 from src.utils import *
 from src.car import *
+from src.solver import *
 
 from numba import njit
 
@@ -31,8 +32,8 @@ VMAX = 50 # vitesse maximum
 
 # DESCENTE DE GRADIENT
 
-SCALE = 100 # coefficient du gradient
-N_ITER = 1000 # nombre d'itérations
+SCALE = 150 # coefficient du gradient
+N_ITER = 500 # nombre d'itérations
 
 # COSMETIQUE
 
@@ -62,78 +63,16 @@ POINTS = spl.compute_points2(N_SECTORS, 2)
 
 #-----------RESOLUTION------------
 
-curve_state = [0.5]*(N_SECTORS)
-dx = 0.0001
 
 TIMES = [0.0]
 
+sol = Solver(POINTS, SCALE, N_SECTORS, VMAX, 0.0001)
 
-@njit
-def points_from_state(state):
-    controls = np.zeros((len(state),2))
+sol_points = sol.solve(N_ITER, TIMES)
 
-    for i in range(len(state)):
-        controls[i] = POINTS[i][0]*(1-state[i])+POINTS[i][1]*state[i]
+car = Car(5,-7, 1500,9.81)
+vel,s = car.compute_velocity_profile(sol_points, 1.3, 1000)
 
-    return controls
-    #return np.array([POINTS[i][0]*(1-state[i])+POINTS[i][1]*state[i] for i in range(len(state))])
-
-@njit
-def time_from_state(state):
-    controls = points_from_state(state)
-
-    t = 0
-
-    for i in range(len(state)-2):
-        L1 = np.sqrt((controls[i+1,0]-controls[i+2,0])**2 + (controls[i+1,1]-controls[i+2,1])**2)
-        L2 = np.sqrt((controls[i+1,0]-controls[i,0])**2 + (controls[i+1,1]-controls[i,1])**2)
-        
-        theta = np.arccos(np.dot(controls[i,:]-controls[i+1,:], controls[i+2,:]-controls[i+1,:])/(L1*L2)) 
-
-        t += 1/min(np.abs(np.tan(theta/2)), VMAX)
-    return t
-
-@njit
-def gradient_descent(state,scale,times,timef):
-    base_time = timef(state)
-
-    times.append(base_time)
-
-    gradient = np.zeros(N_SECTORS)
-
-
-    for i in range(N_SECTORS):
-        state2 = np.zeros(N_SECTORS)
-
-        for i in range(N_SECTORS):
-            state2[i] = state[i]
-
-        state2[i] = state2[i]+dx
-
-        new_time = timef(state2)
-
-        gradient[i] = new_time-base_time
-    
-    new_state = np.zeros(N_SECTORS)
-
-    for i in range(N_SECTORS):
-        new_state[i] = state[i]-(gradient[i]*scale)
-        new_state[i] = min(max(new_state[i],0.0),1.0)
-    return new_state
-
-
-min_state = curve_state
-min_time = float('inf')
-
-for i in range(N_ITER):
-    curve_state = gradient_descent(curve_state, SCALE, TIMES, time_from_state)
-    if TIMES[-1] < min_time:
-        min_state = curve_state
-
-    if VERBOSE and not i%50:
-        print("Iter : ", i, " | Temps : ", TIMES[-1])
-
-sol_points = np.array(points_from_state(min_state))
 
 #-------------AFFICHAGE----------------
 
@@ -164,7 +103,7 @@ for i in range(len(sol_points)-2):
     theta = np.arccos(np.dot(controls[i,:]-controls[i+1,:], controls[i+2,:]-controls[i+1,:])/(L1*L2))
     curvatures.append(np.tan(theta/2))
 
-ax2.plot(np.linspace(0,1,len(curvatures)), curvatures)
+ax2.plot(s, vel)
 
 
 plt.show()
