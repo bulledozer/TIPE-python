@@ -1,6 +1,5 @@
 import numpy as np
 import matplotlib.pyplot as plt
-
 import pandas as pd
 
 from numba import njit
@@ -10,8 +9,6 @@ from alive_progress import alive_bar
 from src.road import *
 from src.utils import *
 from src.car import *
-
-
 
 @njit(cache=True)
 def points_from_state(state, points):
@@ -36,6 +33,20 @@ def time_from_state(state, points):
         theta = np.arccos(np.dot(controls[i]-controls[i+1], controls[i+2]-controls[i+1])/(L1*L2)) 
 
         t += 1/np.abs(np.tan(theta/2))
+    return t
+
+@njit(cache=True)
+def time_from_state2(state,points, mu, g):
+    controls = points_from_state(state, points)
+
+    t = 0.0
+    for i in range(len(state)-2):
+        L1 = np.sqrt((controls[i+1,0]-controls[i+2,0])**2 + (controls[i+1,1]-controls[i+2,1])**2)
+        L2 = np.sqrt((controls[i+1,0]-controls[i,0])**2 + (controls[i+1,1]-controls[i,1])**2)
+
+        theta = np.arccos(np.dot(controls[i]-controls[i+1], controls[i+2]-controls[i+1])/(L1*L2))
+
+        t += L1/np.sqrt(np.tan(theta/2)*mu*g)
     return t
 
 @njit(cache=True)
@@ -81,35 +92,33 @@ if __name__ == "__main__":
 #-----------------------------------------------------------
 #---------PARAMETRES----------------------------------------
 #-----------------------------------------------------------
-
     g = 9.81
-
     # ROUTE
 
     WIDTH = 2.2 # largeur de la route
     N_POINTS = 800 # nombre de points
+    mu = 1.3
 
     # MODELISATION
 
-    N_SECTORS = 230 # nombre de points de contrôle sur la courbe solution
+    N_SECTORS = 130 # nombre de points de contrôle sur la courbe solution
 
     # DESCENTE DE GRADIENT
 
     SCALE = 30 # coefficient du gradient
-    N_ITER = 2000 # nombre d'itérations
+    N_ITER = 1000 # nombre d'itérations
 
     # COSMETIQUE
 
     VERBOSE = False # affiche les infos dans la console
-    SHOW_LINE = True # attention : Montréal et Shanhai n'ont pas de trajectoire idéale
-    ROAD_NAME = "Nuerburgring"
+    SHOW_LINE = False # attention : Montréal et Shanhai n'ont pas de trajectoire idéale
+    ROAD_NAME = "Monza"
 
-
+    VEL_PROFILE = False 
 
 #-----------------------------------------------------------
 #---------TRAITEMENT ROUTE ---------------------------------
 #-----------------------------------------------------------
-
     track_points = pd.read_csv("roads/" + ROAD_NAME + "_centerline.csv").values[:,:2]
     N = track_points.shape[0]
 
@@ -117,7 +126,7 @@ if __name__ == "__main__":
 
     POINTS = spl.compute_points2(N_SECTORS, 2)
     VIS_POINTS = spl.compute_points2(N_POINTS, 2)
-
+    track_points.shape
 #-----------------------------------------------------------
 #-----------RESOLUTION--------------------------------------
 #-----------------------------------------------------------
@@ -166,24 +175,32 @@ if __name__ == "__main__":
 
     ax0.legend()
 
-    ax1,ax2 = f1.subplots(1,2)
+    if VEL_PROFILE:
 
+        ax1,ax2 = f1.subplots(1,2)
+    
+    
+        ax1.set(xlabel='Itérations', ylabel='Temps')
+        ax1.plot([i for i in range(N_ITER)], TIMES[1:])
 
-    ax1.set(xlabel='Itérations', ylabel='Temps')
-    ax1.plot([i for i in range(N_ITER)], TIMES[1:])
+        curvatures = []
+        controls = sol_points
 
-    curvatures = []
-    controls = sol_points
+        car = Car(10, -15, 1500, 10)
+        speeds,s = car.compute_velocity_profile(sol_points, 1, 250)
 
+        #for i in range(len(sol_points)-2):
+        #    L1 = np.sqrt((controls[i+1,0]-controls[i+2,0])**2 + (controls[i+1,1]-controls[i+2,1])**2)
+        #    L2 = np.sqrt((controls[i+1,0]-controls[i,0])**2 + (controls[i+1,1]-controls[i,1])**2)
+        #    
+        #    theta = np.arccos(np.dot(controls[i,:]-controls[i+1,:], controls[i+2,:]-controls[i+1,:])/(L1*L2))
+        #    curvatures.append(np.tan(theta/2))
 
-    for i in range(len(sol_points)-2):
-        L1 = np.sqrt((controls[i+1,0]-controls[i+2,0])**2 + (controls[i+1,1]-controls[i+2,1])**2)
-        L2 = np.sqrt((controls[i+1,0]-controls[i,0])**2 + (controls[i+1,1]-controls[i,1])**2)
-        
-        theta = np.arccos(np.dot(controls[i,:]-controls[i+1,:], controls[i+2,:]-controls[i+1,:])/(L1*L2))
-        curvatures.append(np.tan(theta/2))
+        ax2.plot(s,speeds)
 
-    ax2.plot(np.linspace(0,1,len(curvatures)), curvatures)
-
+    else:
+        ax1 = f1.add_subplot()
+        ax1.set(xlabel='Itérations', ylabel='Temps')
+        ax1.plot([i for i in range(N_ITER)], TIMES[1:])
 
     plt.show()
