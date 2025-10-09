@@ -18,7 +18,6 @@ def points_from_state(state, points):
         controls[i] = points[i][0]*(1-state[i])+points[i][1]*state[i]
 
     return controls
-    #return np.array([POINTS[i][0]*(1-state[i])+POINTS[i][1]*state[i] for i in range(len(state))])
 
 @njit(cache=True)
 def time_from_state(state, points):

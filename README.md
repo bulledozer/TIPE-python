@@ -1,8 +1,6 @@
-# TIPE 
+# Optimisation du temps de parcours d'un circuit 
+Ce projet, dans le cadre d'un TIPE, détermine la trajectoire de temps de parcours minimal le long d'un circuit. Nous utilison pour cela l'algorithme BFGS.
 
-TIPE réalisé en python. L'objet est de déterminer un chemin de temps minimal au travers d'une route. 
-
-Voir aussi ce même [TIPE réalisé en C++](https://github.com/bulledozer/TIPE) plus performant.
 
 
 ## Résultats
@@ -14,14 +12,6 @@ Voir aussi ce même [TIPE réalisé en C++](https://github.com/bulledozer/TIPE) 
 ## Ressources utilisées
 - [Colletion de pistes de courses](https://github.com/f1tenth/f1tenth_racetracks) sous formes de liste de coordonnées, avec les trectoires de temps minimal calculées par un modèle différent.
 
-## Librairies utilisées
 
-### Librairies sérieuses
-- [Numpy](https://numpy.org/)
-- [Scipy](https://scipy.org/)
-- [Matplotlib](https://matplotlib.org/)
-- [Numba](https://numba.pydata.org/)
-- [Splines](https://github.com/AudioSceneDescriptionFormat/splines)
 
-### Autres libraires
-- [Alive-progress](https://github.com/f1tenth/f1tenth_racetracks)
+

@@ -13,7 +13,6 @@ from numba import njit
 
 from src.road import *
 from src.utils import *
-from src.car import *
 
 @njit(cache=True)
 def points_from_state(state, points):
@@ -23,7 +22,6 @@ def points_from_state(state, points):
         controls[i] = points[i][0]*(1-state[i])+points[i][1]*state[i]
 
     return controls
-    #return np.array([POINTS[i][0]*(1-state[i])+POINTS[i][1]*state[i] for i in range(len(state))])
 
 @njit(cache=True)
 def speeds_from_state(state, points, mu, g):
@@ -71,27 +69,14 @@ def solve(N_iter, points, accel, decel, start_speed, n_sectors, mu, g):
         speed_prof = gen_speed_profile(id_speed_prof, ds, start_speed,accel,decel)
         s = np.cumsum(ds)
         s = np.insert(s[:-1], 0, 0)
-        #speed_spl = CubicSpline(s, 1/speed_prof)
+
         interp = Akima1DInterpolator(s,1/speed_prof, method="makima")
 
-        #sample_pts, weights = poly.leggauss(D)
-        
-        # t = 0
-        # for i in range(len(speed_prof)):
-        #     t += 1/speed_prof[i]
-        
-        #return simpson(1/speed_prof, x=s)
         return float(interp.integrate(0, s[-1]))
-        #return t
 
     res = minimize(obj_func, [0.5]*n_sectors, method="BFGS", options={"maxiter":N_iter})
     print(res.success, ",", res.nit, ",",res.message)
-    # es = cma.CMAEvolutionStrategy([0.5]*n_sectors, 0.8, {'bounds' : [0,1], 'maxiter':N_iter})
-    # es.optimize(obj_func)
-    #
-    # sol_state = es.result[0]
-    # time = es.result[1]
-    # res = direct(obj_func, Bounds([0]*n_sectors,[1]*n_sectors), maxiter=10000, len_tol=1e-10, vol_tol=1e-20)
+    
     sol_state = np.clip(res.x,0,1)
     time = res.fun
     sol_points = points_from_state(sol_state, points)
