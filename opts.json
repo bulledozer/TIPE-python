@@ -1,0 +1,11 @@
+{
+	"G":9.81,
+	"WIDTH":2.2,
+	"N_POINTS":800,
+	"ACCEL":5,
+	"DECEL":7,
+	"N_SECTORS":130,
+	"ROAD_NAME":"Monza",
+	"START_SPEED":0.1,
+	"N_ITER":1000
+}
