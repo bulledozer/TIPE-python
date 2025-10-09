@@ -1,5 +1,5 @@
 import matplotlib.pyplot as plt
-
+import json
 
 def plot_points(P, plot, show_quads, c):
     for i in range(len(P)-1):
@@ -18,3 +18,9 @@ def inv_lerp(a: float, b: float, v: float) -> float:
 
 def lerp(a,b,x):
     return (1-x)*a + x*b
+
+def read_json(path):
+    d = {}
+    with open(path, 'r') as f:
+        d = json.load(f)
+    return d

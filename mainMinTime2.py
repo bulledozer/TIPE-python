@@ -1,16 +1,15 @@
 import numpy as np
-import numpy.polynomial.legendre as poly
 import matplotlib.pyplot as plt
 import pandas as pd
 
-import scipy.interpolate as interp
+from scipy import optimize
+from scipy.interpolate import make_interp_spline, CubicSpline, Akima1DInterpolator
 from scipy.integrate import simpson
+from scipy.optimize import direct, Bounds, minimize
 
 import cma
 
 from numba import njit
-
-from alive_progress import alive_bar
 
 from src.road import *
 from src.utils import *
@@ -27,7 +26,7 @@ def points_from_state(state, points):
     #return np.array([POINTS[i][0]*(1-state[i])+POINTS[i][1]*state[i] for i in range(len(state))])
 
 @njit(cache=True)
-def speeds_from_state(state, points):
+def speeds_from_state(state, points, mu, g):
     controls = points_from_state(state, points)
 
     speeds = np.zeros(len(state)-2)
@@ -39,10 +38,9 @@ def speeds_from_state(state, points):
         
         theta = np.arccos(np.dot(controls[i]-controls[i+1], controls[i+2]-controls[i+1])/(L1*L2)) 
 
-        speeds[i] = np.sqrt(np.abs(np.tan(theta/2))+0.00001)
+        speeds[i] = np.sqrt(np.abs(np.tan(theta/2))*mu*g+0.00001)
         ds[i] = (L2)
     return speeds,ds
-
 
 @njit(cache=True)
 def gen_speed_profile(speeds, ds, start_speed, accel, decel):
@@ -66,36 +64,69 @@ def gen_speed_profile(speeds, ds, start_speed, accel, decel):
 
     return speed_prof
 
+def solve(N_iter, points, accel, decel, start_speed, n_sectors, mu, g):
+    def obj_func(state):
+        state = np.clip(state, 0,1)
+        id_speed_prof, ds = speeds_from_state(state,points,mu,g)
+        speed_prof = gen_speed_profile(id_speed_prof, ds, start_speed,accel,decel)
+        s = np.cumsum(ds)
+        s = np.insert(s[:-1], 0, 0)
+        #speed_spl = CubicSpline(s, 1/speed_prof)
+        interp = Akima1DInterpolator(s,1/speed_prof, method="makima")
 
+        #sample_pts, weights = poly.leggauss(D)
+        
+        # t = 0
+        # for i in range(len(speed_prof)):
+        #     t += 1/speed_prof[i]
+        
+        #return simpson(1/speed_prof, x=s)
+        return float(interp.integrate(0, s[-1]))
+        #return t
+
+    res = minimize(obj_func, [0.5]*n_sectors, method="BFGS", options={"maxiter":N_iter})
+    print(res.success, ",", res.nit, ",",res.message)
+    # es = cma.CMAEvolutionStrategy([0.5]*n_sectors, 0.8, {'bounds' : [0,1], 'maxiter':N_iter})
+    # es.optimize(obj_func)
+    #
+    # sol_state = es.result[0]
+    # time = es.result[1]
+    # res = direct(obj_func, Bounds([0]*n_sectors,[1]*n_sectors), maxiter=10000, len_tol=1e-10, vol_tol=1e-20)
+    sol_state = np.clip(res.x,0,1)
+    time = res.fun
+    sol_points = points_from_state(sol_state, points)
+
+    sol_id_speed_prof, ds = speeds_from_state(sol_state, points,mu,g)
+    sol_speed_prof = gen_speed_profile(sol_id_speed_prof, ds, start_speed, accel, decel)
+    s = np.cumsum(ds)
+    
+    return {"state":sol_state, "points":sol_points, "speed_prof":sol_speed_prof, "s":s, "time":time, "id_speed_prof":sol_id_speed_prof}
 
 if __name__ == "__main__":
 
 #-----------------------------------------------------------
 #---------PARAMETRES----------------------------------------
 #-----------------------------------------------------------
-    g = 9.81
+    d_params = read_json("opts.json")
+    G = d_params["G"]
+    MU = 1.3
     # ROUTE
 
-    WIDTH = 2.2 # largeur de la route
-    N_POINTS = 800 # nombre de points
-    mu = 1.3
+    WIDTH = d_params["WIDTH"] # largeur de la route
+    N_POINTS = d_params["N_POINTS"] # nombre de points
 
     #VOITURE
-    ACCEL = 1
-    DECEL = 1.3
+    ACCEL = d_params["ACCEL"]
+    DECEL = d_params["DECEL"]
 
+    N_ITER = d_params["N_ITER"]
     # MODELISATION
 
-    N_SECTORS = 130 # nombre de points de contrôle sur la courbe solution
-    D = 3
+    N_SECTORS = d_params["N_SECTORS"] # nombre de points de contrôle sur la courbe solution
 
     # COSMETIQUE
 
-    VERBOSE = False # affiche les infos dans la console
-    SHOW_LINE = False # attention : Montréal et Shanhai n'ont pas de trajectoire idéale
-    ROAD_NAME = "Monza"
-
-    VEL_PROFILE = False 
+    ROAD_NAME = d_params["ROAD_NAME"]
 
 #-----------------------------------------------------------
 #---------TRAITEMENT ROUTE ---------------------------------
@@ -112,37 +143,12 @@ if __name__ == "__main__":
 #-----------RESOLUTION--------------------------------------
 #-----------------------------------------------------------    
 
-    def obj_func(state):
-        id_speed_prof, ds = speeds_from_state(state,POINTS)
-        speed_prof = gen_speed_profile(id_speed_prof, ds, 5, ACCEL, DECEL)
-        s = np.cumsum(ds)
-        s = np.insert(s[:-1], 0, 0)
-        speed_spl = interp.make_interp_spline(s, 1/speed_prof, k=4)
-        
-        #sample_pts, weights = poly.leggauss(D)
-        
-        # t = 0
-        # for i in range(len(speed_prof)):
-        #     t += 1/speed_prof[i]
-        
-        #return simpson(1/speed_prof, x=s)
-        return float(speed_spl.integrate(0, s[-1]))
-        #return t
-
-    es = cma.CMAEvolutionStrategy([0.5]*N_SECTORS, 0.8, {'bounds' : [0,1], 'maxiter':10000})
-    es.optimize(obj_func)
-     # print(es.result)
-    sol_state = es.result[0]
-    sol_points = points_from_state(sol_state, POINTS)
-
-    sol_id_speed_prof, ds = speeds_from_state(sol_state, POINTS)
-    sol_speed_prof = gen_speed_profile(sol_id_speed_prof, ds, 0.1, ACCEL,DECEL)
-    s = np.cumsum(ds)
-
-    speed_spl = interp.make_interp_spline(s, 1/sol_speed_prof, k=4)
-    # print("min time : ", obj_func(sol_state))
-    # print(sol_id_speed_prof)
-
+    data = solve(N_ITER, POINTS, ACCEL, DECEL,0.1, N_SECTORS, MU, G)
+    sol_points = data["points"]
+    s = data["s"]
+    sol_speed_prof = data["speed_prof"]
+    sol_id_speed_prof = data["id_speed_prof"]
+ 
 #-----------------------------------------------------------
 #-------------AFFICHAGE-------------------------------------
 #-----------------------------------------------------------
@@ -155,10 +161,6 @@ if __name__ == "__main__":
 
     plot_points(VIS_POINTS, ax0, False, 'black')
 
-    if SHOW_LINE:
-        line_points = pd.read_csv("lines/"+ROAD_NAME+"_raceline.csv", sep=";").values[:,1:3]
-        ax0.plot(line_points[:,0],line_points[:,1], c='red', linewidth=3, label="trajectoire idéale", linestyle="--")
-
     ax0.plot(sol_points[:,0],sol_points[:,1], c='orange', linewidth=3, label="notre trajectoire")
     #ax0.scatter(*sol_points.T, c='r', marker='*', s=60, zorder=2)
 
@@ -170,37 +172,5 @@ if __name__ == "__main__":
     ax1.plot(s, sol_speed_prof, label="profil réel")
     
     ax1.legend()
-
-    # ax2.plot(s, 1/sol_speed_prof, label= "profil réel")
-    # ax2.plot(np.linspace(0, s[-1], 1500), speed_spl(np.linspace(0, s[-1], 1500)) + 1, label="profil interpolé")
-    #
-    # ax2.legend()
-    # if VEL_PROFILE:
-    #
-    #     ax1,ax2 = f1.subplots(1,2)
-    #
-    #
-    #     ax1.set(xlabel='Itérations', ylabel='Temps')
-    #     ax1.plot([i for i in range(N_ITER)], TIMES[1:])
-    #
-    #     curvatures = []
-    #     controls = sol_points
-    #
-    #     car = Car(10, -15, 1500, 10)
-    #     speeds,s = car.compute_velocity_profile(sol_points, 1, 250)
-    #
-    #     #for i in range(len(sol_points)-2):
-    #     #    L1 = np.sqrt((controls[i+1,0]-controls[i+2,0])**2 + (controls[i+1,1]-controls[i+2,1])**2)
-    #     #    L2 = np.sqrt((controls[i+1,0]-controls[i,0])**2 + (controls[i+1,1]-controls[i,1])**2)
-    #     #    
-    #     #    theta = np.arccos(np.dot(controls[i,:]-controls[i+1,:], controls[i+2,:]-controls[i+1,:])/(L1*L2))
-    #     #    curvatures.append(np.tan(theta/2))
-    #
-    #     ax2.plot(s,speeds)
-    #
-    # else:
-    #     ax1 = f1.add_subplot()
-    #     ax1.set(xlabel='Itérations', ylabel='Temps')
-    #     ax1.plot([i for i in range(N_ITER)], TIMES[1:])
 
     plt.show()
