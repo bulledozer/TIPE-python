@@ -2,12 +2,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from scipy import optimize
-from scipy.interpolate import make_interp_spline, CubicSpline, Akima1DInterpolator
-from scipy.integrate import simpson
-from scipy.optimize import direct, Bounds, minimize
-
-import cma
+from scipy.interpolate import Akima1DInterpolator
+from scipy.optimize import minimize
 
 from numba import njit
 

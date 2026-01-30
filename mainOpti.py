@@ -8,7 +8,6 @@ from alive_progress import alive_bar
 
 from src.road import *
 from src.utils import *
-from src.car import *
 
 @njit(cache=True)
 def points_from_state(state, points):
@@ -162,8 +161,9 @@ if __name__ == "__main__":
     ax0 = f0.add_subplot()
     ax0.set_aspect('equal', 'datalim')
 
+    plot_points(POINTS, ax0, True, 'white', 'red')
     plot_points(VIS_POINTS, ax0, False, 'black')
-
+    
     if SHOW_LINE:
         line_points = pd.read_csv("lines/"+ROAD_NAME+"_raceline.csv", sep=";").values[:,1:3]
         ax0.plot(line_points[:,0],line_points[:,1], c='red', linewidth=3, label="trajectoire idéale", linestyle="--")
