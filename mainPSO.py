@@ -1,7 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
-from random import random
+
+import pyswarm as ps
 
 from numba import njit
 
@@ -87,42 +88,10 @@ def gen_speed_profile(speeds, ds, start_speed, accel, decel):
 
     return speed_prof
 
-@njit(cache=True)
-def pso(n_sectors, N, w, phip, phig, times, timef, n_iter, points):
-    swarm = np.random.rand(N,n_sectors)
-    bestpos = np.zeros((N,n_sectors))
-    bestknown = np.zeros(n_sectors)
-
-    for i in range(N):
-        bestpos[i] = swarm[i]
-        if timef(bestpos[i], points) < timef(bestknown, points):
-            bestknown = bestpos[i]
-
-    vel = 2*np.random.rand(N,n_sectors) - np.ones((N,n_sectors))
-    
-    for o in range(n_iter):
-        for i in range(N):
-            for j in range(n_sectors):
-                rp,rg = np.random.rand(2)
-                vel[i,j] = w*vel[i,j] + phip*rp*(bestpos[i,j]-swarm[i,j]) + phig*rg*(bestknown[j]-swarm[i,j])
-            swarm[i] += vel[i]
-            swarm[i] = np.clip(swarm[i],0,1)
-
-            part_time = timef(swarm[i], points)
-
-            if part_time < timef(bestpos[i], points):
-                bestpos[i] = swarm[i]
-            if part_time < timef(bestknown, points):
-                bestknown = swarm[i]
-
-        times.append(timef(bestknown, points))
-    return bestknown
-
 def solve(N_iter, swarm_size, points, w, phip, phig, n_sectors, start_speed, accel, decel, times):
-    res = pso(n_sectors, swarm_size, w, phip, phig, times, time_from_state, N_iter, points)
-
+    res, time = ps.pso(lambda x : time_from_state(x, points), [0]*n_sectors, [1]*n_sectors, maxiter=2000, minfunc=1e-20, minstep=1e-20, swarmsize=1000)
+    
     sol_state = np.clip(res,0,1)
-    time = time_from_state(res, points)
     sol_points = points_from_state(sol_state, points)
 
     sol_id_speed_prof, ds = speeds_from_state(sol_state, points,mu,g)
@@ -131,6 +100,22 @@ def solve(N_iter, swarm_size, points, w, phip, phig, n_sectors, start_speed, acc
     
     return {"state":sol_state, "points":sol_points, "speed_prof":sol_speed_prof, "s":s, "time":time, "id_speed_prof":sol_id_speed_prof}
 
+def testPSO(points, wR, phipR, phigR, n_sectors, res):
+    w = np.linspace(-wR, wR, res)
+    phip = np.linspace(-phipR, phipR, res)
+    phig = np.linspace(-phigR, phigR, res)
+
+    min_time = np.inf
+    min_conf = (0,0,0)
+    for a in w:
+        for b in phip:
+            for c in phig:
+                t = ps.pso(lambda x : time_from_state(x, points), [0]*n_sectors, [1]*n_sectors)[1]
+                if t >= min_time:
+                    continue
+                min_time = t
+                min_conf = (a,b,c)
+    return min_conf
 
 if __name__ == "__main__":
 
@@ -146,20 +131,20 @@ if __name__ == "__main__":
 
     # MODELISATION
 
-    N_SECTORS = 130 # nombre de points de contrôle sur la courbe solution
+    N_SECTORS = 60 # nombre de points de contrôle sur la courbe solution
 
     # PSO
 
-    W = 0.01
-    PHIP = 1
-    PHIG = 1
+    W = -0.3
+    PHIP = 1.16
+    PHIG = -0.94
     SWARM_SIZE = 200
 
     START_SPEED = 0.1
     ACCEL = 5
     DECEL = 7
 
-    N_ITER = 1000 # nombre d'itérations
+    N_ITER = 500 # nombre d'itérations
 
     # COSMETIQUE
 
@@ -217,33 +202,5 @@ if __name__ == "__main__":
 
 
     ax0.legend()
-
-    if VEL_PROFILE:
-
-        ax1,ax2 = f1.subplots(1,2)
-    
-    
-        ax1.set(xlabel='Itérations', ylabel='Temps')
-        ax1.plot([i for i in range(N_ITER)], TIMES[1:])
-
-        curvatures = []
-        controls = sol_points
-
-        car = Car(10, -15, 1500, 10)
-        speeds,s = car.compute_velocity_profile(sol_points, 1, 250)
-
-        #for i in range(len(sol_points)-2):
-        #    L1 = np.sqrt((controls[i+1,0]-controls[i+2,0])**2 + (controls[i+1,1]-controls[i+2,1])**2)
-        #    L2 = np.sqrt((controls[i+1,0]-controls[i,0])**2 + (controls[i+1,1]-controls[i,1])**2)
-        #    
-        #    theta = np.arccos(np.dot(controls[i,:]-controls[i+1,:], controls[i+2,:]-controls[i+1,:])/(L1*L2))
-        #    curvatures.append(np.tan(theta/2))
-
-        ax2.plot(s,speeds)
-
-    else:
-        ax1 = f1.add_subplot()
-        ax1.set(xlabel='Itérations', ylabel='Temps')
-        ax1.plot([i for i in range(N_ITER)], TIMES[1:])
 
     plt.show()
